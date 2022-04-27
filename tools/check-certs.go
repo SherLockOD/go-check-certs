@@ -114,6 +114,7 @@ func processHosts() {
 	var wg sync.WaitGroup
 	wg.Add(*concurrency)
 	for i := 0; i < *concurrency; i++ {
+		// fmt.Printf("ph: %d\n", i)
 		go func() {
 			processQueue(done, hosts, results)
 			wg.Done()
@@ -131,6 +132,7 @@ func processHosts() {
 		}
 		for _, cert := range r.certs {
 			for _, err := range cert.errs {
+				fmt.Printf("Stdout：")
 				log.Println(err)
 			}
 		}
@@ -155,6 +157,7 @@ func queueHosts(done <-chan struct{}) <-chan string {
 			select {
 			case hosts <- host:
 			case <-done:
+				fmt.Println("done final")
 				return
 			}
 		}
@@ -162,11 +165,18 @@ func queueHosts(done <-chan struct{}) <-chan string {
 	return hosts
 }
 
+/*
+	1. 本程序的并发思路，固定 goroutine 个数，然后通过 channel 不断分发给这几个goroutine，来并发
+	2. 我的程序并发思路，不固定 goroutine 个数，每个 goroutine 只接受一个参数，并发控制接受参数的 goroutine 个数(通过channel控制)。
+
+*/
+
 func processQueue(done <-chan struct{}, hosts <-chan string, results chan<- hostResult) {
 	for host := range hosts {
 		select {
 		case results <- checkHost(host):
 		case <-done:
+			fmt.Println("done final2")
 			return
 		}
 	}
@@ -188,6 +198,7 @@ func checkHost(host string) (result hostResult) {
 	checkedCerts := make(map[string]struct{})
 	for _, chain := range conn.ConnectionState().VerifiedChains {
 		for certNum, cert := range chain {
+			fmt.Printf("Cert: %s %v %s\n", cert.NotAfter, cert.IsCA, cert.Subject.CommonName)
 			if _, checked := checkedCerts[string(cert.Signature)]; checked {
 				continue
 			}
